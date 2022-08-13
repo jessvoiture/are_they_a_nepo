@@ -1,0 +1,46 @@
+
+html {
+    background-color: white;
+}
+
+.waffle {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 10px;
+    width: 900px;
+    padding: 40px;
+    text-align: left;
+  }
+  
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 10px;
+    width: 400px;
+    height: 500px;
+    justify-content: flex-start;
+    align-content: flex-start;
+}  
+
+.block {
+    width: 17px;
+    height: 17px;
+    margin: 2px;
+  }
+
+.hist {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+  }
+  
+.bar {
+    display: flex;
+    flex-direction: column;
+    margin: 0 0.5rem;
+  }
+  
+.histblock {
+    width: 20px;
+    height: 20px;
+}
