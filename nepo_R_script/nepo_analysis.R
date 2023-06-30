@@ -1,75 +1,39 @@
 require(dplyr)
-require(tidyr)
-require(ggplot2)
-require(ggbeeswarm)
-require(packcircles)
-require(stringr)
-require(readr)
+require(purrr)
+require(rjson)
+require(jsonlite)
 
-setwd <- "~/Documents/J/github/are_they_a_nepo/"
-poptv <- read.csv("~/Documents/J/github/are_they_a_nepo/datasets/MostPopularTVs.csv") %>%
-  mutate(type = "tv") %>%
-  select(-rankUpDown) 
-popmov <- read.csv("~/Documents/J/github/are_they_a_nepo/datasets/MostPopularMovies.csv") %>%
-  select(-rankUpDown) %>%
+topmov <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/Top250Movies.csv")
+popmov <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/MostPopularMovies.csv")
+toptv <- read.csv("/Users/jessiscacarr/Documents/J/github/are_they_a_nepo/nepo_data/Top250TVs.csv")
+poptv <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/MostPopularTVs.csv")
+
+cols_of_interest <- c("id", "title", "year", "image", "cast_length", "cast", "pct_nepo")
+group_cols <- c("id", "title", "year", "image", "type", "cast_length", "pct_nepo")
+
+topmov <- topmov %>%
+  select(cols_of_interest) %>%
   mutate(type = "film")
-topmov <- read.csv("~/Documents/J/github/are_they_a_nepo/datasets/Top250Movies.csv") %>%
+
+popmov <- popmov %>%
+  select(cols_of_interest) %>%
   mutate(type = "film")
-toptv <- read.csv("~/Documents/J/github/are_they_a_nepo/datasets/Top250TVs.csv") %>%
+
+toptv <- toptv %>%
+  select(cols_of_interest) %>%
   mutate(type = "tv")
-box <- read.csv("~/Documents/J/github/are_they_a_nepo/datasets/BoxOfficeAllTime.csv") %>%
-  distinct(id, .keep_all = TRUE) %>% 
-  mutate(gross = parse_number(worldwideLifetimeGross))
 
-df_bind <- rbind(poptv, popmov, topmov, toptv)
+poptv <- poptv %>%
+  select(cols_of_interest) %>%
+  mutate(type = "tv")
 
-df_cast <- df_bind %>%
-  group_by(id) %>%
-  distinct() %>%
-  ungroup() %>%
-  filter(pct_nepo > 0) %>%
-  filter(nepos != "False")
+df <- bind_rows(topmov, popmov, toptv, poptv)
 
-df_rep <- df_cast %>%
-  distinct(cast, id, .keep_all = T) %>%
-  group_by(cast) %>%
-  summarise(tot = n(),
-            titles = toString(unique(fullTitle)))
+df1 <- df %>%
+  group_by(across(all_of(group_cols))) %>% 
+  summarise(cast_list = list(unique(cast)))
 
-df <- df_bind %>%
-  group_by(id, title, year, type, pct_nepo, imDbRating) %>%
-  distinct() %>%
-  summarise(tot = n(),
-            nepo_count = sum(nepos != "False")) %>%
-  mutate(pct_nepo = replace(pct_nepo, is.na(pct_nepo), 0))
+x <- toJSON(df1)
 
-df_nozero <- df %>%
-  filter(pct_nepo > 0)
+write(x, "/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/all-nepo.json")
 
-filmtv <- df_nozero %>%
-  group_by(type) %>%
-  summarise(n())
-
-tot <- df %>%
-  group_by(type) %>%
-  summarise(n()) 
-
-p <- ggplot(df_nozero, aes(x=pct_nepo)) + 
-  geom_histogram()
-
-p
-
-pl <- ggplot(df_nozero, aes(x=imDbRating,
-                      y=pct_nepo,
-                     color=as.factor(type))) + 
-  geom_point()
-
-pl
-
-
-pct <- ggplot(df, aes(x=tot,
-                            y=nepo_count,
-                            color=as.factor(type))) + 
-  geom_point()
-
-pct
