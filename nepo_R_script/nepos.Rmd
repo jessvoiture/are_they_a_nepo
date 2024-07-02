@@ -1,0 +1,179 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+require(dplyr)
+require(purrr)
+require(rjson)
+require(jsonlite)
+require(ggplot2)
+require(tidyverse)
+require(readr)
+require(tidyr)
+```
+
+
+```{r}
+topmov <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/Top250Movies.csv")
+popmov <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/MostPopularMovies.csv")
+toptv <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/Top250TVs.csv")
+poptv <- read.csv("/Users/jessicacarr/Documents/J/github/are_they_a_nepo/nepo_data/MostPopularTVs.csv")
+
+cols_of_interest <- c("id", "title", "year", "image", "cast_length", "cast", "pct_nepo")
+group_cols <- c("id", "title", "year", "image", "type", "cast_length", "pct_nepo")
+
+```
+
+
+```{r}
+topmov <- topmov %>%
+  select(all_of(cols_of_interest)) %>%
+  mutate(type = "film")
+
+popmov <- popmov %>%
+  select(all_of(cols_of_interest)) %>%
+  mutate(type = "film")
+
+toptv <- toptv %>%
+  select(all_of(cols_of_interest)) %>%
+  mutate(type = "tv")
+
+poptv <- poptv %>%
+  select(all_of(cols_of_interest)) %>%
+  mutate(type = "tv")
+
+df <- bind_rows(topmov, popmov, toptv, poptv)
+```
+
+just the titles. get rid of cast info
+```{r}
+unique_titles <- df %>%
+  distinct(title, .keep_all = T) %>%
+  select(-cast)
+
+unique_titles_nepos <- unique_titles %>%
+  filter(pct_nepo > 0)
+  
+```
+
+lets look at basic numbers
+```{r}
+# how many titles contain at least one nepo? 
+# average pct_nepo across all titles
+df_summary <- unique_titles %>%
+  summarise(avg_pct_nepo = mean(pct_nepo),
+            count_titles_nepos  = sum(pct_nepo > 0))
+
+# now just looking at titles with nepos
+df_summary_nepos <- unique_titles_nepos %>%
+  summarise(avg_pct_nepo = mean(pct_nepo))
+
+```
+
+
+lets split by type (tv and film)
+```{r}
+# does pct_nepo differ across tv and film titles?
+type_summary <- unique_titles %>%
+  group_by(type) %>%
+  summarise(
+    count_titles = n(),
+    count_titles_nepos  = sum(pct_nepo > 0),
+    avg_pct_nepo = mean(pct_nepo)) %>%
+  mutate(ratio_titles_nepos = count_titles_nepos / count_titles)
+
+
+# lets look at just nepo titles
+type_summary_nepos <- unique_titles_nepos %>%
+   group_by(type) %>%
+  summarise(avg_pct_nepo = mean(pct_nepo))
+  
+```
+
+t test to see if the mean pct_nepo between tv and film is sig diff
+```{r}
+film_subset <- subset(unique_titles, type == "film")
+tv_subset <- subset(unique_titles, type == "tv")
+
+# Conduct t-test
+t_test_result <- t.test(film_subset$pct_nepo, tv_subset$pct_nepo)
+t_test_result
+
+wilcox.test(film_subset$pct_nepo, tv_subset$pct_nepo)
+
+t.test(film_subset$pct_nepo, tv_subset$pct_nepo, alternative = "two.sided", var.equal = FALSE)
+
+```
+
+
+Simple Histogram showing titles pct_nepo in film and tv
+What's interesting is that the avg pct_nepo is a bit higher in film
+
+```{r}
+h <- ggplot(unique_titles, aes(log(pct_nepo))) +
+  geom_histogram() +
+  facet_wrap(vars(type))
+
+h
+```
+
+Now lets look at the cast members
+```{r}
+df_cast <- df %>%
+  mutate(cast = gsub("'", '"', cast)) %>%  # Replace single quotes with double quotes
+  mutate(cast = gsub("\\{\\{|\\}\\}", "", cast)) %>%  # Remove extra curly braces
+  mutate_all(str_remove_all, '"') %>%  # Remove remaining double quotes
+  separate(cast, into = c("nonsense","name", "image", "link", "nepo", "parents"),
+           sep = 'name:|, image:|, link:|, nepo:|, parents:') %>%
+  select(-c(parents, nonsense, image)) %>% 
+  mutate(across(where(is.character), str_trim))
+
+df_cast_unique <- df_cast %>%
+  distinct(name, link, .keep_all = T)
+```
+
+
+how often do cast members appear in more than 1 title?
+```{r}
+cast_freq <- df_cast %>%
+  group_by(name, link, nepo)%>%
+  summarise(title_count = n())
+
+cast_freq_above_1 <- cast_freq %>%
+    filter(title_count > 1)
+
+cast_freq_above_1_by_nepo <- cast_freq_above_1 %>%
+  group_by(nepo) %>%
+  summarise(count_actors = n())
+
+avg_title_count <- cast_freq %>%
+  group_by(nepo) %>%
+  summarise(mean_title_count = mean(title_count))
+```
+
+```{r}
+
+h_cast_freq <- ggplot(cast_freq_above_1, aes(x = title_count)) +
+  geom_histogram(aes(y = after_stat( count / sum(count))),binwidth=0.5) +
+  scale_y_continuous(labels = scales::percent) + 
+  facet_wrap(vars(nepo))
+
+h_cast_freq
+```
+
+
+
+how many actors are nepo?
+```{r}
+cast_nepo_freq <- df_cast %>%
+  group_by(nepo) %>%
+  summarise(count = n())
+
+cast_unique_nepo_freq <- df_cast_unique %>%
+  group_by(nepo) %>%
+  summarise(count = n())
+
+```
+
